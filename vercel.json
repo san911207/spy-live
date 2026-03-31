@@ -1,10 +1,6 @@
 {
-  "builds": [
-    { "src": "api/*.py", "use": "@vercel/python" },
-    { "src": "public/**", "use": "@vercel/static" }
-  ],
-  "routes": [
-    { "src": "/api/data", "dest": "/api/data.py" },
-    { "src": "/(.*)", "dest": "/public/$1" }
+  "rewrites": [
+    { "source": "/api/data", "destination": "/api/data" },
+    { "source": "/(.*)", "destination": "/index.html" }
   ]
 }
