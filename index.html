@@ -1,0 +1,202 @@
+<!DOCTYPE html><html lang="ko"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>SPY Live Dashboard</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#F5F0E8;color:#1e293b;font-family:'Inter',-apple-system,sans-serif;line-height:1.6}
+.w{max-width:680px;margin:0 auto;padding:24px 20px}
+.loading{text-align:center;padding:80px 20px;color:#94a3b8;font-size:15px}
+.loading .spin{display:inline-block;width:32px;height:32px;border:3px solid #DDD5C5;border-top-color:#1e293b;border-radius:50%;animation:sp .8s linear infinite;margin-bottom:12px}
+@keyframes sp{to{transform:rotate(360deg)}}
+.sb{display:inline-block;font-size:12px;font-weight:700;color:#64748b;background:#EBE5D9;padding:4px 14px;border-radius:20px;margin-bottom:16px}
+.live-dot{display:inline-block;width:8px;height:8px;background:#16a34a;border-radius:50%;margin-right:6px;animation:pulse 2s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+.tr{display:flex;align-items:baseline;gap:14px;margin-bottom:2px}
+.tk{font-size:13px;font-weight:700;color:#94a3b8;letter-spacing:1px}
+.pr{font-size:38px;font-weight:900;color:#0f172a;letter-spacing:-1.5px}
+.ch{font-size:16px;font-weight:700}
+.si{font-size:12px;color:#94a3b8;margin-top:4px}
+.sec{margin-bottom:28px}
+.st{font-size:16px;font-weight:800;color:#0f172a;margin-bottom:14px;padding-bottom:10px;border-bottom:2px solid #DDD5C5}
+.sn{font-size:12px;color:#94a3b8;line-height:1.6;margin-top:10px;padding:10px 14px;background:#F0EBE1;border-radius:8px;border-left:3px solid #C9B99A}
+.cd{background:#FFFDF9;border-radius:12px;padding:16px 18px;border:1px solid #E8E0D0;box-shadow:0 1px 3px rgba(120,100,60,0.06)}
+.cd .lb{font-size:11px;color:#94a3b8;font-weight:600;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px}
+.cd .vl{font-size:24px;font-weight:800;letter-spacing:-.5px}
+.cd .su{font-size:11px;color:#94a3b8;margin-top:2px}
+.g{display:grid;gap:10px}
+.g2{grid-template-columns:repeat(2,1fr)}.g3{grid-template-columns:repeat(3,1fr)}.g4{grid-template-columns:repeat(4,1fr)}.g5{grid-template-columns:repeat(5,1fr)}
+.dv{height:1px;background:#DDD5C5;margin:24px 0}
+.badge{display:inline-block;padding:2px 10px;border-radius:10px;font-size:11px;font-weight:600}
+.row{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid #EBE5D9}
+.refresh-btn{display:inline-flex;align-items:center;gap:6px;background:#1e293b;color:#fff;border:none;padding:8px 16px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit}
+.refresh-btn:hover{background:#334155}
+.ft{text-align:center;padding:20px 0;font-size:11px;color:#94a3b8}
+@media(max-width:600px){.g4,.g5{grid-template-columns:repeat(2,1fr)}.pr{font-size:30px}}
+</style></head><body>
+<div class="w" id="app">
+<div class="loading"><div class="spin"></div><br>SPY 실시간 데이터 로딩 중...</div>
+</div>
+<script>
+const $ = s => document.querySelector(s);
+const clr = v => v > 0 ? '#16a34a' : v < 0 ? '#dc2626' : '#6b7280';
+const sgn = v => v > 0 ? '+' : '';
+const sigClr = s => {s=s.toLowerCase();if(s.includes('sell')||s.includes('매도')||s.includes('과매도')||s.includes('put'))return'#dc2626';if(s.includes('buy')||s.includes('매수')||s.includes('과매수')||s.includes('call'))return'#16a34a';return'#d97706'};
+const badge = (t,c) => {c=c||sigClr(t);return`<span class="badge" style="background:${c}12;color:${c};border:1px solid ${c}25">${t}</span>`};
+
+async function load(){
+ $('#app').innerHTML='<div class="loading"><div class="spin"></div><br>SPY 실시간 데이터 로딩 중...</div>';
+ try{
+  const r=await fetch('/api/data');
+  if(!r.ok)throw new Error('API error '+r.status);
+  const d=await r.json();
+  if(d.error)throw new Error(d.error);
+  render(d);
+ }catch(e){
+  $('#app').innerHTML=`<div class="loading" style="color:#dc2626">데이터 로딩 실패: ${e.message}<br><br><button class="refresh-btn" onclick="load()">다시 시도</button></div>`;
+ }
+}
+
+function render(d){
+ const p=d.price,ath=d.ath,vol=d.volume,ma=d.ma,ms=d.ma_summary,ind=d.indicators;
+ const ext=d.extras,bb=d.bollinger,lvl=d.levels,comp=d.composite;
+ const st=comp.short_term,mt=comp.mid_term,act=comp.action;
+ const cc=clr(p.chg),ac=sigClr(act.direction),sc=sigClr(st.signal),mc=sigClr(mt.signal);
+
+ // AH/PM line
+ let ahLine='';
+ if(p.after_hours&&p.after_hours>0){const c=clr(p.ah_chg);ahLine=`<div style="font-size:13px;margin-top:4px"><span style="color:#94a3b8;font-weight:600">After-hours</span> <span style="font-weight:800;color:${c}">$${p.after_hours}</span> <span style="color:${c};font-size:12px">${sgn(p.ah_chg)}${p.ah_chg} (${sgn(p.ah_chg_pct)}${p.ah_chg_pct}%)</span></div>`}
+ if(p.pre_market&&p.pre_market>0){const c=clr(p.pm_chg);ahLine=`<div style="font-size:13px;margin-top:4px"><span style="color:#94a3b8;font-weight:600">Pre-market</span> <span style="font-weight:800;color:${c}">$${p.pre_market}</span> <span style="color:${c};font-size:12px">${sgn(p.pm_chg)}${p.pm_chg} (${sgn(p.pm_chg_pct)}${p.pm_chg_pct}%)</span></div>`}
+
+ // MA rows
+ let maRows='';
+ for(const[n,v]of Object.entries(ma)){
+  const s=p.last>v?'매수':'매도',c=s==='매수'?'#16a34a':'#dc2626';
+  const gap=((p.last-v)/v*100).toFixed(2),bw=Math.min(Math.abs(gap)*15,100);
+  maRows+=`<div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid #EBE5D9">
+   <span style="width:120px;font-size:13px;color:#64748b;font-weight:500">${n}</span>
+   <div style="flex:1;height:8px;background:#EBE5D9;border-radius:4px;overflow:hidden"><div style="width:${bw}%;height:100%;background:${c}35;border-radius:4px"></div></div>
+   <span style="width:65px;text-align:right;font-weight:700;color:${c};font-size:14px">$${v}</span></div>`}
+
+ // Indicator rows
+ const indList=[['RSI (14)',ind.RSI,ind.RSI_signal],['MACD',ind.MACD,ind.MACD_signal],['Stochastic %K',ind.Stoch_K,ind.Stoch_signal],['ATR (14)',ind.ATR,'$'+ind.ATR]];
+ let indGrid='';
+ for(let i=0;i<indList.length;i+=2){
+  const[n1,v1,s1]=indList[i];const r=indList[i+1];
+  const cell=([n,v,s])=>`<div style="flex:1;display:flex;justify-content:space-between;align-items:center;padding:14px 18px;background:#F5F0E8;border-radius:10px;border:1px solid #E8E0D0">
+   <span style="font-size:13px;color:#64748b;font-weight:500">${n}</span>
+   <div style="display:flex;align-items:center;gap:8px"><span style="font-weight:700;color:${sigClr(s)};font-size:15px">${v}</span>${badge(s)}</div></div>`;
+  indGrid+=`<div style="display:flex;gap:10px;margin-bottom:8px">${cell([n1,v1,s1])}${r?cell(r):'<div style="flex:1"></div>'}</div>`}
+
+ // S/R
+ const srRows=(ls,c)=>ls.sort((a,b)=>b.price-a.price).map(l=>`<div class="row"><span style="font-size:13px;color:#475569">${l.label}</span><span style="font-weight:700;color:${c};font-size:14px">$${l.price}</span></div>`).join('');
+
+ // Recent
+ let recRows='';
+ (d.recent||[]).forEach(r=>{const c=clr(r.chg_pct);recRows+=`<div style="display:flex;padding:8px 0;border-bottom:1px solid #EBE5D9;font-size:13px">
+  <span style="flex:1;color:#64748b">${r.date}</span><span style="flex:1;text-align:center;font-weight:600">$${r.close}</span>
+  <span style="flex:1;text-align:center;font-weight:600;color:${c}">${sgn(r.chg_pct)}${r.chg_pct}%</span>
+  <span style="flex:1;text-align:right;color:#94a3b8">${(r.vol/1e6).toFixed(0)}M</span></div>`});
+
+ // Warnings
+ const warns=(act.warnings||[]).map(w=>`<div style="font-size:12px;color:#92400e;margin-bottom:3px">⚠️ ${w}</div>`).join('');
+ const warnBox=warns?`<div style="margin-top:12px;padding:10px 14px;background:#FEF3C7;border-radius:8px;border-left:3px solid #D97706">${warns}</div>`:'';
+
+ // BB position
+ const bbPct=bb.upper!==bb.lower?Math.max(0,Math.min(100,(p.last-bb.lower)/(bb.upper-bb.lower)*100)):50;
+ const vwapAbove=d.vwap&&p.last>d.vwap;
+
+ // Render
+ $('#app').innerHTML=`
+<!-- HEADER -->
+<div style="padding:28px 0 20px">
+ <div style="display:flex;align-items:center;gap:8px;margin-bottom:16px">
+  <div class="sb"><span class="live-dot"></span>LIVE · ${d.timestamp}</div>
+  <button class="refresh-btn" onclick="load()">↻ 새로고침</button>
+ </div>
+ <div class="tr"><span class="tk">SPY</span><span class="pr">$${p.last}</span>
+  <span class="ch" style="color:${cc}">${sgn(p.chg)}${p.chg} (${sgn(p.chg_pct)}${p.chg_pct}%)</span></div>
+ ${ahLine}
+ <div class="si">Range $${p.low} — $${p.high} · ATH $${ath.price} (${ath.date}) · ATH 대비 ${ath.pct}%</div>
+</div>
+
+<!-- ACTION -->
+<div class="sec"><div class="st">📍 Today's action</div>
+<div style="background:#FFFDF9;border-radius:12px;padding:20px 24px;border:2px solid ${ac}30;box-shadow:0 1px 3px rgba(120,100,60,.06)">
+ <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px">
+  <div style="font-size:11px;color:#94a3b8;font-weight:600;text-transform:uppercase">TODAY'S ACTION</div>
+  <div style="font-size:22px;font-weight:900;color:${ac}">${act.direction}</div>
+  <div style="margin-left:auto">${badge('확신도: '+act.confidence)}</div></div>
+ <div style="font-size:13px;color:#475569;margin-bottom:14px">${act.description}</div>
+ <div class="g g4">
+  <div style="background:#F5F0E8;border-radius:8px;padding:10px 12px;text-align:center"><div style="font-size:10px;color:#94a3b8;font-weight:600">ENTRY</div><div style="font-size:12px;font-weight:700;margin-top:2px">${act.entry}</div></div>
+  <div style="background:#F5F0E8;border-radius:8px;padding:10px 12px;text-align:center"><div style="font-size:10px;color:#94a3b8;font-weight:600">TARGET</div><div style="font-size:12px;font-weight:700;color:#16a34a;margin-top:2px">${act.target}</div></div>
+  <div style="background:#F5F0E8;border-radius:8px;padding:10px 12px;text-align:center"><div style="font-size:10px;color:#94a3b8;font-weight:600">STOP</div><div style="font-size:12px;font-weight:700;color:#dc2626;margin-top:2px">${act.stop}</div></div>
+  <div style="background:#F5F0E8;border-radius:8px;padding:10px 12px;text-align:center"><div style="font-size:10px;color:#94a3b8;font-weight:600">SIZE</div><div style="font-size:12px;font-weight:700;margin-top:2px">${act.sizing}</div></div>
+ </div>${warnBox}
+</div></div><div class="dv"></div>
+
+<!-- COMPOSITE -->
+<div class="sec"><div class="st">📊 Composite signal</div>
+<div class="g g2">
+ <div class="cd"><div class="lb">단기 (1-5일)</div><div style="font-size:24px;font-weight:800;color:${sc};margin:6px 0">${st.signal}</div><div style="font-size:11px;color:#94a3b8">score ${st.score}</div></div>
+ <div class="cd"><div class="lb">중기 (1-4주)</div><div style="font-size:24px;font-weight:800;color:${mc};margin:6px 0">${mt.signal}</div><div style="font-size:11px;color:#94a3b8">score ${mt.score}</div></div>
+</div></div><div class="dv"></div>
+
+<!-- PRICE -->
+<div class="sec"><div class="st">💰 Price snapshot</div>
+<div class="g g4">
+ <div class="cd"><div class="lb">종가</div><div class="vl">$${p.last}</div><div class="su" style="color:${cc}">${sgn(p.chg_pct)}${p.chg_pct}%</div></div>
+ <div class="cd"><div class="lb">ATH 대비</div><div class="vl" style="color:#dc2626">${ath.pct}%</div><div class="su">$${ath.price}</div></div>
+ <div class="cd"><div class="lb">거래량</div><div class="vl">${(vol.current/1e6).toFixed(0)}M</div><div class="su">${vol.ratio}x avg</div></div>
+ <div class="cd"><div class="lb">변동성</div><div class="vl">${p.range_pct}%</div><div class="su">$${p.range}</div></div>
+</div></div><div class="dv"></div>
+
+<!-- MARKET -->
+<div class="sec"><div class="st">🌍 Market overview</div>
+<div class="g g5">
+ <div class="cd" style="text-align:center"><div class="lb">VIX</div><div class="vl" style="font-size:20px">${ext.vix}</div><div class="su" style="color:${clr(ext.vix_chg)}">${sgn(ext.vix_chg)}${ext.vix_chg}%</div></div>
+ <div class="cd" style="text-align:center"><div class="lb">WTI</div><div class="vl" style="font-size:20px">$${ext.oil}</div><div class="su" style="color:${clr(ext.oil_chg)}">${sgn(ext.oil_chg)}${ext.oil_chg}%</div></div>
+ <div class="cd" style="text-align:center"><div class="lb">ES</div><div class="vl" style="font-size:20px">$${ext.es_futures}</div><div class="su" style="color:${clr(ext.es_futures_chg)}">${sgn(ext.es_futures_chg)}${ext.es_futures_chg}%</div></div>
+ <div class="cd" style="text-align:center"><div class="lb">Gold</div><div class="vl" style="font-size:20px">$${ext.gold}</div><div class="su" style="color:${clr(ext.gold_chg)}">${sgn(ext.gold_chg)}${ext.gold_chg}%</div></div>
+ <div class="cd" style="text-align:center"><div class="lb">10Y</div><div class="vl" style="font-size:20px">${ext.us10y}%</div><div class="su" style="color:${clr(ext.us10y_chg)}">${sgn(ext.us10y_chg)}${ext.us10y_chg}%</div></div>
+</div></div><div class="dv"></div>
+
+<!-- MA -->
+<div class="sec"><div class="st">📉 Moving averages — ${ms.sell===7?'전 구간 매도':ms.sell+'S / '+ms.buy+'B'}</div>
+<div class="cd" style="padding:18px 22px">${maRows}</div>
+<div class="sn">${ms.cross} · MA ${ms.sell}/${ms.sell+ms.buy} Sell</div></div><div class="dv"></div>
+
+<!-- INDICATORS -->
+<div class="sec"><div class="st">🔬 Key indicators</div>${indGrid}</div><div class="dv"></div>
+
+<!-- S/R -->
+<div class="sec"><div class="st">🎯 Support / Resistance</div>
+<div class="g g2">
+ <div><div style="font-size:12px;font-weight:700;color:#dc2626;margin-bottom:6px">▲ RESISTANCE</div><div class="cd" style="padding:12px 16px">${srRows(lvl.resistance,'#dc2626')}</div></div>
+ <div><div style="font-size:12px;font-weight:700;color:#16a34a;margin-bottom:6px">▼ SUPPORT</div><div class="cd" style="padding:12px 16px">${srRows(lvl.support,'#16a34a')}</div></div>
+</div></div><div class="dv"></div>
+
+<!-- RECENT -->
+<div class="sec"><div class="st">📅 Recent 5 days</div>
+<div class="cd" style="padding:12px 16px">
+ <div style="display:flex;padding:4px 0;border-bottom:1px solid #DDD5C5;font-size:10px;color:#94a3b8;font-weight:600"><span style="flex:1">날짜</span><span style="flex:1;text-align:center">종가</span><span style="flex:1;text-align:center">변동</span><span style="flex:1;text-align:right">거래량</span></div>
+ ${recRows}</div></div><div class="dv"></div>
+
+<!-- BB + VWAP -->
+<div class="sec"><div class="st">Bollinger &amp; VWAP</div>
+<div class="g g2">
+ <div class="cd"><div class="lb">Bollinger Bands</div>
+  <div style="display:flex;justify-content:space-between;margin-top:8px;font-size:13px"><span style="color:#16a34a">$${bb.lower}</span><span style="font-weight:700">$${bb.mid}</span><span style="color:#dc2626">$${bb.upper}</span></div>
+  <div style="margin-top:10px;height:8px;background:linear-gradient(to right,#dcfce7,#EBE5D9,#fee2e2);border-radius:4px;position:relative">
+   <div style="position:absolute;top:-2px;left:${bbPct}%;width:12px;height:12px;background:#0f172a;border-radius:50%;border:2px solid #fff;transform:translateX(-50%)"></div></div></div>
+ <div class="cd"><div class="lb">VWAP</div>
+  <div class="vl" style="font-size:20px;color:${vwapAbove?'#16a34a':'#dc2626'};margin-top:6px">${vwapAbove?'▲ 상회':'▼ 하회'}</div>
+  <div class="su">$${d.vwap} vs $${p.last}</div></div>
+</div></div>
+
+<!-- FOOTER -->
+<div class="ft"><b>SPY Live Dashboard</b><br>${d.timestamp} · 새로고침 = 실시간 업데이트 · 투자 조언 아님</div>`;
+}
+
+load();
+</script></body></html>
